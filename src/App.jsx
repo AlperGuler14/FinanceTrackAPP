@@ -6,8 +6,8 @@ import { supabase } from './supabaseClient';
 import { SettingsProvider } from './SettingsContext';
 
 // Sayfalar
-import Dashboard from './Pages/Dashboard'; 
-import Islemler from './Pages/Islemler';
+import Dashboard from './pages/Dashboard'; 
+import Islemler from './pages/Islemler';
 import YeniKayit from './Pages/YeniKayit';
 import Cuzdanlar from './pages/Card';
 import Profile from './pages/Profile'; 
