@@ -6,19 +6,21 @@ import { supabase } from '../supabaseClient';
 import toast, { Toaster } from 'react-hot-toast';
 import { useSettings } from '../SettingsContext';
 
-// YENİ: DASHBOARD SÖZLÜĞÜ (ÇOKLU DİL İÇİN)
 const DICTIONARY = {
   TR: { hi: "Merhaba Alper!", sub: "Finansal durumunun güncel özeti.", net: "Toplam Net Varlık", budget: "Bütçe Takibi", manage: "YÖNET", invest: "Yatırım", debt: "Borç", track: "Takip Ediliyor", upcoming: "Yaklaşan Ödemeler", add: "+ YENİ EKLE", today: "BUGÜN!", days: "Gün Kaldı", noSub: "Henüz abonelik eklenmedi.", goals: "Hedeflerin", recent: "Son Hareketler", noTx: "Bu ay işlem yok", load: "Yükleniyor...", limit: "Limit Aşımı", spent: "harcandı" },
   EN: { hi: "Hello Alper!", sub: "Current summary of your finances.", net: "Total Net Worth", budget: "Budget Tracking", manage: "MANAGE", invest: "Investment", debt: "Debt", track: "Tracked", upcoming: "Upcoming Payments", add: "+ ADD NEW", today: "TODAY!", days: "Days Left", noSub: "No subscriptions added.", goals: "Your Goals", recent: "Recent Transactions", noTx: "No transactions this month", load: "Loading...", limit: "Limit Exceeded", spent: "spent" }
 };
 
 function Dashboard() {
-  const { currency, language } = useSettings(); // DİL VE PARA BİRİMİ ÇEKİLDİ
-  const t = DICTIONARY[language] || DICTIONARY.TR; // SEÇİLİ DİLİ UYGULA
+  const { currency, language } = useSettings(); 
+  const t = DICTIONARY[language] || DICTIONARY.TR; 
 
   const giderKategorileri = ["Market", "Yemek", "Ulaşım", "Kira", "Fatura", "Eğlence", "Sağlık", "Giyim", "Eğitim", "Abonelik", "Diğer"];
   const aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
   const renkSecenekleri = ['bg-blue-500', 'bg-purple-500', 'bg-emerald-500', 'bg-orange-500', 'bg-pink-500', 'bg-red-500'];
+
+  // YENİ: Profil fotoğrafını Ana Ekranda da göstermek için state eklendi
+  const [avatarUrl, setAvatarUrl] = useState(null);
 
   const [hesaplar, setHesaplar] = useState([]);
   const [islemler, setIslemler] = useState([]);
@@ -65,6 +67,13 @@ function Dashboard() {
 
   async function fetchData() {
     setLoading(true);
+
+    // YENİ: Kullanıcı giriş verisini ve profil resmini alıyoruz
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.user_metadata?.avatar_url) {
+      setAvatarUrl(user.user_metadata.avatar_url);
+    }
+
     const { data: hData } = await supabase.from('hesaplar').select('*');
     if (hData) { setHesaplar(hData); setToplamBakiye(hData.reduce((acc, h) => acc + (Number(h.bakiye) || 0), 0)); }
     
@@ -150,19 +159,39 @@ function Dashboard() {
   };
   
   const handleParaEkle = async () => {
-    if (!eklenecekTutar || isNaN(eklenecekTutar) || Number(eklenecekTutar) <= 0) return toast.error("Geçerli bir tutar girin!");
-    if (!seciliHesapId) return toast.error("Lütfen paranın çekileceği hesabı seçin!");
+    if (!eklenecekTutar || isNaN(eklenecekTutar) || Number(eklenecekTutar) <= 0) return toast.error(language === 'TR' ? "Geçerli bir tutar girin!" : "Enter valid amount!");
+    if (!seciliHesapId) return toast.error(language === 'TR' ? "Lütfen paranın çekileceği hesabı seçin!" : "Select an account!");
+    
     const miktar = Number(eklenecekTutar);
-    const secilenKasa = hesaplar.find(h => h.id === Number(seciliHesapId));
+    const secilenKasa = hesaplar.find(h => h.id == seciliHesapId); 
+    
     if (!secilenKasa) return toast.error("Hesap bulunamadı!");
-    if (Number(secilenKasa.bakiye) < miktar) return toast.error(`${secilenKasa.ad} hesabında yeterli bakiye yok!`);
+    if (Number(secilenKasa.bakiye) < miktar) return toast.error(language === 'TR' ? `${secilenKasa.ad} hesabında yeterli bakiye yok!` : `Insufficient balance!`);
 
-    const { error } = await supabase.from('hedefler').update({ guncel_tutar: Number(seciliHedef.guncel_tutar) + miktar }).eq('id', seciliHedef.id);
-    if (!error) {
-      await supabase.from('hesaplar').update({ bakiye: Number(secilenKasa.bakiye) - miktar }).eq('id', secilenKasa.id);
-      await supabase.from('islemler').insert([{ tutar: -miktar, aciklama: `[HEDEF] ${seciliHedef.baslik}`, kategori_adi: 'Hedef', hesap_id: secilenKasa.id }]);
-      toast.success("Hedefe para aktarıldı!"); setIsParaEkleModalAcik(false); setEklenecekTutar(''); setSeciliHesapId(''); fetchData();
-    }
+    setLoading(true);
+
+    const { error: hError } = await supabase.from('hedefler').update({ guncel_tutar: Number(seciliHedef.guncel_tutar) + miktar }).eq('id', seciliHedef.id);
+    if (hError) { setLoading(false); return toast.error(hError.message); }
+
+    const { error: kError } = await supabase.from('hesaplar').update({ bakiye: Number(secilenKasa.bakiye) - miktar }).eq('id', secilenKasa.id);
+    if (kError) { setLoading(false); return toast.error(kError.message); }
+
+    const bugun = new Date().toISOString().split('T')[0];
+    const { error: iError } = await supabase.from('islemler').insert([{ 
+      tutar: -miktar, 
+      aciklama: `[HEDEF] ${seciliHedef.baslik}`, 
+      kategori_adi: 'Hedef', 
+      hesap_id: secilenKasa.id,
+      tarih: bugun 
+    }]);
+
+    if (iError) { setLoading(false); return toast.error(iError.message); }
+
+    toast.success(language === 'TR' ? "Hedefe para aktarıldı!" : "Money transferred!"); 
+    setIsParaEkleModalAcik(false); 
+    setEklenecekTutar(''); 
+    setSeciliHesapId(''); 
+    fetchData();
   };
 
   const handleAbonelikKaydet = async () => {
@@ -184,8 +213,13 @@ function Dashboard() {
             <button onClick={() => setIsDarkMode(!isDarkMode)} className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 text-gray-600 dark:text-yellow-400 transition-colors">
               {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <div className="w-10 h-10 rounded-2xl bg-white shadow-sm flex items-center justify-center border border-gray-100 overflow-hidden">
-                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=Alper`} alt="Profile" />
+            {/* YENİ: FOTOĞRAF ALANI DÜZENLENDİ VE DİNAMİK YAPILDI */}
+            <div className="w-10 h-10 rounded-2xl bg-white shadow-sm flex items-center justify-center border border-gray-100 overflow-hidden shrink-0">
+                <img 
+                  src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=Alper`} 
+                  alt="Profile" 
+                  className="w-full h-full object-cover" 
+                />
             </div>
           </div>
         </div>
@@ -293,9 +327,108 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* (MODALLAR BURADA AYNI ŞEKİLDE ÇALIŞIYOR, YER KAPLAMASIN DİYE DOKUNMADIK, TASARIMI KORUNDU) */}
+      {/* MODALLAR */}
       
-      {/* ... ÖNCEKİ KODDAKİ MODALLAR (Bütçe, Hedef, Para Ekleme) AYNEN BURADA KALIYOR ... */}
+      {isParaEkleModalAcik && seciliHedef && (
+        <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-6 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] p-8 w-full max-w-xs shadow-2xl animate-in fade-in zoom-in duration-200">
+            <h3 className="text-xl font-black text-gray-900 dark:text-white mb-1">{seciliHedef.baslik}</h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-6 font-medium tracking-tight">Hedefe ne kadar eklenecek?</p>
+            <div className="flex flex-col gap-4 mb-6">
+              <input type="number" value={eklenecekTutar} onChange={(e) => setEklenecekTutar(e.target.value)} placeholder="0" className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-black text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-blue-500 text-lg" />
+              <select value={seciliHesapId} onChange={(e) => setSeciliHesapId(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-700 p-3 rounded-xl font-bold text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-blue-500 cursor-pointer text-sm">
+                <option value="" disabled>Hangi hesaptan çekilecek?</option>
+                {hesaplar.map(h => <option key={h.id} value={h.id}>{h.ad} ({currency}{h.bakiye})</option>)}
+              </select>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setIsParaEkleModalAcik(false)} className="flex-1 py-4 rounded-2xl font-bold text-gray-400 bg-gray-100 dark:bg-gray-700 text-sm">İptal</button>
+              <button onClick={handleParaEkle} className={`flex-1 py-4 rounded-2xl font-bold text-white shadow-lg text-sm ${seciliHedef.renk} hover:brightness-110`}>Aktar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isHedefModalAcik && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-6 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl animate-in fade-in zoom-in duration-200">
+            <h3 className="text-xl font-black text-gray-900 dark:text-white mb-4">Yeni Hedef Belirle</h3>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">Hedef Adı</label>
+                <input type="text" value={yeniHedefBaslik} onChange={(e) => setYeniHedefBaslik(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-700 p-3 rounded-xl font-bold text-gray-800 dark:text-white outline-none mt-1 border border-gray-100 dark:border-gray-600" />
+              </div>
+              <div>
+                <label className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">Gereken Tutar ({currency})</label>
+                <input type="number" value={yeniHedefTutar} onChange={(e) => setYeniHedefTutar(e.target.value)} placeholder="0" className="w-full bg-gray-50 dark:bg-gray-700 p-3 rounded-xl font-bold text-gray-800 dark:text-white outline-none mt-1 border border-gray-100 dark:border-gray-600" />
+              </div>
+              <div>
+                <label className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-2 block">Renk Seçimi</label>
+                <div className="flex gap-3">
+                  {renkSecenekleri.map(renk => (
+                    <button key={renk} onClick={() => setSecilenRenk(renk)} className={`w-8 h-8 rounded-full ${renk} ${secilenRenk === renk ? 'ring-4 ring-gray-200 dark:ring-gray-600 scale-110' : ''}`} />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-8">
+              <button onClick={() => setIsHedefModalAcik(false)} className="flex-1 py-3 rounded-xl font-bold text-gray-500 bg-gray-100 dark:bg-gray-700">İptal</button>
+              <button onClick={handleHedefKaydet} className="flex-1 py-3 rounded-xl font-bold text-[#84cc16] bg-[#0B3B24]">Kaydet</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isButceModalAcik && (
+        <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-6 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] p-8 w-full max-w-xs shadow-2xl animate-in fade-in zoom-in duration-200">
+            <button onClick={() => setIsButceModalAcik(false)} className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+            <h3 className="text-xl font-black text-gray-900 dark:text-white mb-1">Bütçe Belirle</h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-6 font-medium">Hangi kategoriye limit koymak istersin?</p>
+            <div className="flex flex-col gap-4 mb-4">
+              <select value={yeniButceKategori} onChange={(e) => setYeniButceKategori(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-bold text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-orange-500 cursor-pointer">
+                <option value="" disabled>Kategori Seçin...</option>
+                {giderKategorileri.map((kat, index) => <option key={index} value={kat}>{kat}</option>)}
+              </select>
+              <div className="flex gap-2">
+                <input type="number" value={yeniButceLimit} onChange={(e) => setYeniButceLimit(e.target.value)} placeholder={`Limit (${currency})`} className="flex-1 bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-bold text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-orange-500" />
+                <button onClick={handleButceKaydet} className="bg-orange-500 text-white px-6 rounded-2xl font-bold hover:bg-orange-600 transition-colors">Koy</button>
+              </div>
+            </div>
+            {butcelerListesi.length > 0 && (
+              <div className="mt-6 border-t border-gray-100 dark:border-gray-700 pt-4">
+                <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-wider">Aktif Bütçe Limitlerin</p>
+                <div className="flex flex-col gap-2 max-h-40 overflow-y-auto pr-1">
+                  {butcelerListesi.map(b => (
+                    <div key={b.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-700 p-3 rounded-xl">
+                      <span className="text-xs font-bold text-gray-700 dark:text-gray-200">{b.kategori_adi} <span className="text-gray-400 ml-1">{currency}{b.limit_tutar}</span></span>
+                      <button onClick={() => handleButceSil(b.id, b.kategori_adi)} className="text-gray-400 hover:text-red-500 transition-colors p-1"><Trash2 size={16} /></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isAbonelikModalAcik && (
+        <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-6 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] p-8 w-full max-w-xs shadow-2xl animate-in fade-in zoom-in duration-200">
+            <h3 className="text-xl font-black text-gray-900 dark:text-white mb-1">Abonelik Ekle</h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-6 font-medium">Düzenli ödemelerini takip et.</p>
+            <div className="flex flex-col gap-4">
+              <input type="text" value={yeniAbonelikAd} onChange={(e) => setYeniAbonelikAd(e.target.value)} placeholder="Örn: Netflix, Kira" className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-bold text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-purple-500" />
+              <input type="number" value={yeniAbonelikTutar} onChange={(e) => setYeniAbonelikTutar(e.target.value)} placeholder={`Aylık Tutar (${currency})`} className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-bold text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-purple-500" />
+              <input type="number" min="1" max="31" value={yeniAbonelikGun} onChange={(e) => setYeniAbonelikGun(e.target.value)} placeholder="Ayın Kaçıncı Günü? (1-31)" className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-bold text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-purple-500" />
+            </div>
+            <div className="flex gap-3 mt-8">
+              <button onClick={() => setIsAbonelikModalAcik(false)} className="flex-1 py-4 rounded-2xl font-bold text-gray-400 bg-gray-100 dark:bg-gray-700 text-sm">İptal</button>
+              <button onClick={handleAbonelikKaydet} className="flex-1 py-4 rounded-2xl font-bold text-white shadow-lg text-sm bg-purple-500 hover:bg-purple-600 transition-colors">Kaydet</button>
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-md bg-[#0B3B24] dark:bg-[#062616] rounded-full px-8 py-4 flex justify-between items-center shadow-2xl z-50 transition-colors">
         <Link to="/" className="text-[#84cc16]"><Home size={22} /></Link>
