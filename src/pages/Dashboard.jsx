@@ -7,21 +7,33 @@ import toast, { Toaster } from 'react-hot-toast';
 import { useSettings } from '../SettingsContext';
 
 const DICTIONARY = {
-  TR: { hi: "Merhaba Alper!", sub: "Finansal durumunun güncel özeti.", net: "Toplam Net Varlık", budget: "Bütçe Takibi", manage: "YÖNET", invest: "Yatırım", debt: "Borç", track: "Takip Ediliyor", upcoming: "Yaklaşan Ödemeler", add: "+ YENİ EKLE", today: "BUGÜN!", days: "Gün Kaldı", noSub: "Henüz abonelik eklenmedi.", goals: "Hedeflerin", recent: "Son Hareketler", noTx: "Bu ay işlem yok", load: "Yükleniyor...", limit: "Limit Aşımı", spent: "harcandı" },
-  EN: { hi: "Hello Alper!", sub: "Current summary of your finances.", net: "Total Net Worth", budget: "Budget Tracking", manage: "MANAGE", invest: "Investment", debt: "Debt", track: "Tracked", upcoming: "Upcoming Payments", add: "+ ADD NEW", today: "TODAY!", days: "Days Left", noSub: "No subscriptions added.", goals: "Your Goals", recent: "Recent Transactions", noTx: "No transactions this month", load: "Loading...", limit: "Limit Exceeded", spent: "spent" }
+  TR: { 
+    hi: "Merhaba Alper!", sub: "Finansal durumunun güncel özeti.", net: "Toplam Net Varlık", budget: "Bütçe Takibi", manage: "YÖNET", invest: "Yatırım", debt: "Borç", track: "Takip Ediliyor", upcoming: "Yaklaşan Ödemeler", add: "+ YENİ EKLE", today: "BUGÜN!", days: "Gün Kaldı", noSub: "Henüz abonelik eklenmedi.", goals: "Hedeflerin", recent: "Son Hareketler", noTx: "Bu ay işlem yok", load: "Yükleniyor...", limit: "Limit Aşımı", spent: "harcandı", cancel: "İptal", save: "Kaydet",
+    months: ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"],
+    categories: ["Market", "Yemek", "Ulaşım", "Kira", "Fatura", "Eğlence", "Sağlık", "Giyim", "Eğitim", "Abonelik", "Diğer"],
+    transfer: "Aktar", addMoneyDesc: "Hedefe ne kadar eklenecek?", selectAcc: "Hangi hesaptan çekilecek?",
+    newGoal: "Yeni Hedef Belirle", goalName: "Hedef Adı", reqAmount: "Gereken Tutar", colorSel: "Renk Seçimi",
+    setBudget: "Bütçe Belirle", budgetDesc: "Hangi kategoriye limit koymak istersin?", selectCat: "Kategori Seçin...", activeBudgets: "Aktif Bütçe Limitlerin",
+    addSub: "Abonelik Ekle", subDesc: "Düzenli ödemelerini takip et.", exSub: "Örn: Netflix, Kira", monthAmt: "Aylık Tutar", whichDay: "Ayın Kaçıncı Günü? (1-31)"
+  },
+  EN: { 
+    hi: "Hello Alper!", sub: "Current summary of your finances.", net: "Total Net Worth", budget: "Budget Tracking", manage: "MANAGE", invest: "Investment", debt: "Debt", track: "Tracked", upcoming: "Upcoming Payments", add: "+ ADD NEW", today: "TODAY!", days: "Days Left", noSub: "No subscriptions added.", goals: "Your Goals", recent: "Recent Transactions", noTx: "No transactions this month", load: "Loading...", limit: "Limit Exceeded", spent: "spent", cancel: "Cancel", save: "Save",
+    months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+    categories: ["Groceries", "Dining", "Transport", "Rent", "Bills", "Entertainment", "Health", "Clothing", "Education", "Subscription", "Other"],
+    transfer: "Transfer", addMoneyDesc: "How much to add?", selectAcc: "Which account to withdraw from?",
+    newGoal: "Set New Goal", goalName: "Goal Name", reqAmount: "Required Amount", colorSel: "Select Color",
+    setBudget: "Set Budget", budgetDesc: "Which category to limit?", selectCat: "Select Category...", activeBudgets: "Active Budget Limits",
+    addSub: "Add Subscription", subDesc: "Track your regular payments.", exSub: "Ex: Netflix, Rent", monthAmt: "Monthly Amount", whichDay: "Which Day? (1-31)"
+  }
 };
 
 function Dashboard() {
   const { currency, language } = useSettings(); 
   const t = DICTIONARY[language] || DICTIONARY.TR; 
 
-  const giderKategorileri = ["Market", "Yemek", "Ulaşım", "Kira", "Fatura", "Eğlence", "Sağlık", "Giyim", "Eğitim", "Abonelik", "Diğer"];
-  const aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
   const renkSecenekleri = ['bg-blue-500', 'bg-purple-500', 'bg-emerald-500', 'bg-orange-500', 'bg-pink-500', 'bg-red-500'];
 
-  // YENİ: Profil fotoğrafını Ana Ekranda da göstermek için state eklendi
   const [avatarUrl, setAvatarUrl] = useState(null);
-
   const [hesaplar, setHesaplar] = useState([]);
   const [islemler, setIslemler] = useState([]);
   const [toplamBakiye, setToplamBakiye] = useState(0);
@@ -68,7 +80,6 @@ function Dashboard() {
   async function fetchData() {
     setLoading(true);
 
-    // YENİ: Kullanıcı giriş verisini ve profil resmini alıyoruz
     const { data: { user } } = await supabase.auth.getUser();
     if (user?.user_metadata?.avatar_url) {
       setAvatarUrl(user.user_metadata.avatar_url);
@@ -95,8 +106,8 @@ function Dashboard() {
       iData.forEach(islem => {
         const kat = (islem.kategori_adi || "").toLowerCase();
         const miktar = Math.abs(Number(islem.tutar));
-        if (['yatırım', 'yatirim', 'hisse', 'fon', 'döviz', 'doviz', 'kripto', 'altın', 'altin'].includes(kat)) yatToplam += miktar;
-        else if (['borç', 'borc', 'kredi', 'taksit'].includes(kat)) borcToplam += miktar;
+        if (['yatırım', 'yatirim', 'hisse', 'fon', 'döviz', 'doviz', 'kripto', 'altın', 'altin', 'investment'].includes(kat)) yatToplam += miktar;
+        else if (['borç', 'borc', 'kredi', 'taksit', 'debt'].includes(kat)) borcToplam += miktar;
         if (new Date(islem.tarih).getMonth() === seciliAy && new Date(islem.tarih).getFullYear() === seciliYil) buAykiIslemler.push(islem);
       });
 
@@ -115,30 +126,25 @@ function Dashboard() {
   }
 
   const handleAbonelikSil = async (id, ad) => {
-    if (!window.confirm(`${ad} aboneliğini silmek istediğine emin misin?`)) return;
+    if (!window.confirm(language === 'TR' ? `${ad} aboneliğini silmek istediğine emin misin?` : `Delete ${ad} subscription?`)) return;
     const { error } = await supabase.from('abonelikler').delete().eq('id', id);
-    if (!error) { toast.success("Abonelik silindi!"); fetchData(); }
+    if (!error) { toast.success(language === 'TR' ? "Abonelik silindi!" : "Deleted!"); fetchData(); }
   };
 
   const handleHedefSil = async (id, baslik) => {
-    if (!window.confirm(`${baslik} hedefini silmek istediğine emin misin?`)) return;
+    if (!window.confirm(language === 'TR' ? `${baslik} hedefini silmek istediğine emin misin?` : `Delete goal ${baslik}?`)) return;
     const { error } = await supabase.from('hedefler').delete().eq('id', id);
-    if (!error) { toast.success("Hedef silindi!"); fetchData(); }
+    if (!error) { toast.success(language === 'TR' ? "Hedef silindi!" : "Deleted!"); fetchData(); }
   };
 
   const handleButceSil = async (id, kategori) => {
-    if (!window.confirm(`${kategori} bütçe limitini kaldırmak istediğine emin misin?`)) return;
+    if (!window.confirm(language === 'TR' ? `${kategori} limitini kaldırmak istediğine emin misin?` : `Remove budget limit for ${kategori}?`)) return;
     const { error } = await supabase.from('butceler').delete().eq('id', id);
-    if (!error) { toast.success("Bütçe silindi!"); fetchData(); }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    toast.success("Çıkış yapıldı.");
+    if (!error) { toast.success(language === 'TR' ? "Bütçe silindi!" : "Deleted!"); fetchData(); }
   };
 
   const handleButceKaydet = async () => {
-      if (!yeniButceKategori || !yeniButceLimit) return toast.error("Kategori ve limit girin!");
+      if (!yeniButceKategori || !yeniButceLimit) return toast.error(language === 'TR' ? "Kategori ve limit girin!" : "Enter category and limit!");
       const { data: mevcutButce } = await supabase.from('butceler').select('*').ilike('kategori_adi', yeniButceKategori).maybeSingle();
       let islemHatasi = null;
       if (mevcutButce) {
@@ -149,13 +155,13 @@ function Dashboard() {
         islemHatasi = error;
       }
       if (islemHatasi) toast.error("Hata: " + islemHatasi.message);
-      else { toast.success("Bütçe ayarlandı!"); setYeniButceKategori(''); setYeniButceLimit(''); fetchData(); }
+      else { toast.success(language === 'TR' ? "Bütçe ayarlandı!" : "Budget set!"); setIsButceModalAcik(false); setYeniButceKategori(''); setYeniButceLimit(''); fetchData(); }
   };
   
   const handleHedefKaydet = async () => {
-    if (!yeniHedefBaslik || !yeniHedefTutar) return toast.error("Eksik bilgi!");
+    if (!yeniHedefBaslik || !yeniHedefTutar) return toast.error(language === 'TR' ? "Eksik bilgi!" : "Missing info!");
     const { data } = await supabase.from('hedefler').insert([{ baslik: yeniHedefBaslik, hedef_tutar: Number(yeniHedefTutar), guncel_tutar: 0, renk: secilenRenk }]).select();
-    if (data) { setHedefler([data[0], ...hedefler]); setIsHedefModalAcik(false); setYeniHedefBaslik(''); setYeniHedefTutar(''); toast.success("Hedef oluşturuldu!"); }
+    if (data) { setHedefler([data[0], ...hedefler]); setIsHedefModalAcik(false); setYeniHedefBaslik(''); setYeniHedefTutar(''); toast.success(language === 'TR' ? "Hedef oluşturuldu!" : "Goal created!"); }
   };
   
   const handleParaEkle = async () => {
@@ -180,7 +186,7 @@ function Dashboard() {
     const { error: iError } = await supabase.from('islemler').insert([{ 
       tutar: -miktar, 
       aciklama: `[HEDEF] ${seciliHedef.baslik}`, 
-      kategori_adi: 'Hedef', 
+      kategori_adi: language === 'TR' ? 'Hedef' : 'Goal', 
       hesap_id: secilenKasa.id,
       tarih: bugun 
     }]);
@@ -195,9 +201,9 @@ function Dashboard() {
   };
 
   const handleAbonelikKaydet = async () => {
-    if (!yeniAbonelikAd || !yeniAbonelikTutar || !yeniAbonelikGun) return toast.error("Tüm alanları doldurun!");
+    if (!yeniAbonelikAd || !yeniAbonelikTutar || !yeniAbonelikGun) return toast.error(language === 'TR' ? "Tüm alanları doldurun!" : "Fill all fields!");
     const { error } = await supabase.from('abonelikler').insert([{ ad: yeniAbonelikAd, tutar: Number(yeniAbonelikTutar), odeme_gunu: Number(yeniAbonelikGun) }]);
-    if (!error) { toast.success("Abonelik eklendi!"); setIsAbonelikModalAcik(false); setYeniAbonelikAd(''); setYeniAbonelikTutar(''); setYeniAbonelikGun(''); fetchData(); } 
+    if (!error) { toast.success(language === 'TR' ? "Abonelik eklendi!" : "Added!"); setIsAbonelikModalAcik(false); setYeniAbonelikAd(''); setYeniAbonelikTutar(''); setYeniAbonelikGun(''); fetchData(); } 
   };
 
   return (
@@ -213,7 +219,6 @@ function Dashboard() {
             <button onClick={() => setIsDarkMode(!isDarkMode)} className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 text-gray-600 dark:text-yellow-400 transition-colors">
               {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            {/* YENİ: FOTOĞRAF ALANI DÜZENLENDİ VE DİNAMİK YAPILDI */}
             <div className="w-10 h-10 rounded-2xl bg-white shadow-sm flex items-center justify-center border border-gray-100 overflow-hidden shrink-0">
                 <img 
                   src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=Alper`} 
@@ -311,7 +316,7 @@ function Dashboard() {
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-gray-900 dark:text-white font-black text-lg">{t.recent}</h3>
           <select value={seciliAy} onChange={(e) => setSeciliAy(Number(e.target.value))} className="bg-gray-50 dark:bg-gray-700 dark:text-white px-3 py-1.5 rounded-2xl text-[11px] font-black text-blue-600 outline-none uppercase tracking-tighter cursor-pointer border border-gray-100 dark:border-gray-600">
-            {aylar.map((a, i) => <option key={i} value={i}>{a}</option>)}
+            {t.months.map((a, i) => <option key={i} value={i}>{a}</option>)}
           </select>
         </div>
         <div className="flex flex-col gap-4">
@@ -319,9 +324,9 @@ function Dashboard() {
             <div key={is.id} className="flex items-center justify-between p-1">
               <div className="flex items-center gap-4">
                 <div className="w-11 h-11 rounded-2xl bg-gray-50 dark:bg-gray-700 flex items-center justify-center border border-gray-100 dark:border-gray-600"><Wallet size={18} className="text-gray-400" /></div>
-                <div><p className="text-sm font-bold text-gray-900 dark:text-gray-100">{is.aciklama || is.kategori_adi}</p><p className="text-[10px] text-gray-400 font-medium">{new Date(is.tarih).toLocaleDateString('tr-TR')}</p></div>
+                <div><p className="text-sm font-bold text-gray-900 dark:text-gray-100">{is.aciklama || is.kategori_adi}</p><p className="text-[10px] text-gray-400 font-medium">{new Date(is.tarih).toLocaleDateString(language === 'TR' ? 'tr-TR' : 'en-US')}</p></div>
               </div>
-              <p className={`text-sm font-black ${Number(is.tutar) > 0 ? 'text-emerald-500' : 'text-gray-900 dark:text-gray-100'}`}>{Number(is.tutar) > 0 ? '+' : ''}{Number(is.tutar).toLocaleString('tr-TR')} {currency}</p>
+              <p className={`text-sm font-black ${Number(is.tutar) > 0 ? 'text-emerald-500' : 'text-gray-900 dark:text-gray-100'}`}>{Number(is.tutar) > 0 ? '+' : ''}{Number(is.tutar).toLocaleString(language === 'TR' ? 'tr-TR' : 'en-US')} {currency}</p>
             </div>
           )) : <p className="text-center py-10 text-gray-300 dark:text-gray-600 text-[10px] font-black uppercase tracking-widest">{t.noTx}</p>}
         </div>
@@ -333,17 +338,17 @@ function Dashboard() {
         <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-6 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] p-8 w-full max-w-xs shadow-2xl animate-in fade-in zoom-in duration-200">
             <h3 className="text-xl font-black text-gray-900 dark:text-white mb-1">{seciliHedef.baslik}</h3>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-6 font-medium tracking-tight">Hedefe ne kadar eklenecek?</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-6 font-medium tracking-tight">{t.addMoneyDesc}</p>
             <div className="flex flex-col gap-4 mb-6">
               <input type="number" value={eklenecekTutar} onChange={(e) => setEklenecekTutar(e.target.value)} placeholder="0" className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-black text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-blue-500 text-lg" />
               <select value={seciliHesapId} onChange={(e) => setSeciliHesapId(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-700 p-3 rounded-xl font-bold text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-blue-500 cursor-pointer text-sm">
-                <option value="" disabled>Hangi hesaptan çekilecek?</option>
+                <option value="" disabled>{t.selectAcc}</option>
                 {hesaplar.map(h => <option key={h.id} value={h.id}>{h.ad} ({currency}{h.bakiye})</option>)}
               </select>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setIsParaEkleModalAcik(false)} className="flex-1 py-4 rounded-2xl font-bold text-gray-400 bg-gray-100 dark:bg-gray-700 text-sm">İptal</button>
-              <button onClick={handleParaEkle} className={`flex-1 py-4 rounded-2xl font-bold text-white shadow-lg text-sm ${seciliHedef.renk} hover:brightness-110`}>Aktar</button>
+              <button onClick={() => setIsParaEkleModalAcik(false)} className="flex-1 py-4 rounded-2xl font-bold text-gray-400 bg-gray-100 dark:bg-gray-700 text-sm">{t.cancel}</button>
+              <button onClick={handleParaEkle} className={`flex-1 py-4 rounded-2xl font-bold text-white shadow-lg text-sm ${seciliHedef.renk} hover:brightness-110`}>{t.transfer}</button>
             </div>
           </div>
         </div>
@@ -352,18 +357,18 @@ function Dashboard() {
       {isHedefModalAcik && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-6 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl animate-in fade-in zoom-in duration-200">
-            <h3 className="text-xl font-black text-gray-900 dark:text-white mb-4">Yeni Hedef Belirle</h3>
+            <h3 className="text-xl font-black text-gray-900 dark:text-white mb-4">{t.newGoal}</h3>
             <div className="flex flex-col gap-4">
               <div>
-                <label className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">Hedef Adı</label>
+                <label className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">{t.goalName}</label>
                 <input type="text" value={yeniHedefBaslik} onChange={(e) => setYeniHedefBaslik(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-700 p-3 rounded-xl font-bold text-gray-800 dark:text-white outline-none mt-1 border border-gray-100 dark:border-gray-600" />
               </div>
               <div>
-                <label className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">Gereken Tutar ({currency})</label>
+                <label className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">{t.reqAmount} ({currency})</label>
                 <input type="number" value={yeniHedefTutar} onChange={(e) => setYeniHedefTutar(e.target.value)} placeholder="0" className="w-full bg-gray-50 dark:bg-gray-700 p-3 rounded-xl font-bold text-gray-800 dark:text-white outline-none mt-1 border border-gray-100 dark:border-gray-600" />
               </div>
               <div>
-                <label className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-2 block">Renk Seçimi</label>
+                <label className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-2 block">{t.colorSel}</label>
                 <div className="flex gap-3">
                   {renkSecenekleri.map(renk => (
                     <button key={renk} onClick={() => setSecilenRenk(renk)} className={`w-8 h-8 rounded-full ${renk} ${secilenRenk === renk ? 'ring-4 ring-gray-200 dark:ring-gray-600 scale-110' : ''}`} />
@@ -372,8 +377,8 @@ function Dashboard() {
               </div>
             </div>
             <div className="flex gap-3 mt-8">
-              <button onClick={() => setIsHedefModalAcik(false)} className="flex-1 py-3 rounded-xl font-bold text-gray-500 bg-gray-100 dark:bg-gray-700">İptal</button>
-              <button onClick={handleHedefKaydet} className="flex-1 py-3 rounded-xl font-bold text-[#84cc16] bg-[#0B3B24]">Kaydet</button>
+              <button onClick={() => setIsHedefModalAcik(false)} className="flex-1 py-3 rounded-xl font-bold text-gray-500 bg-gray-100 dark:bg-gray-700">{t.cancel}</button>
+              <button onClick={handleHedefKaydet} className="flex-1 py-3 rounded-xl font-bold text-[#84cc16] bg-[#0B3B24]">{t.save}</button>
             </div>
           </div>
         </div>
@@ -381,23 +386,26 @@ function Dashboard() {
 
       {isButceModalAcik && (
         <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-6 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] p-8 w-full max-w-xs shadow-2xl animate-in fade-in zoom-in duration-200">
-            <button onClick={() => setIsButceModalAcik(false)} className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
-            <h3 className="text-xl font-black text-gray-900 dark:text-white mb-1">Bütçe Belirle</h3>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-6 font-medium">Hangi kategoriye limit koymak istersin?</p>
-            <div className="flex flex-col gap-4 mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] p-8 w-full max-w-xs shadow-2xl animate-in fade-in zoom-in duration-200 relative">
+            <h3 className="text-xl font-black text-gray-900 dark:text-white mb-1">{t.setBudget}</h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-6 font-medium">{t.budgetDesc}</p>
+            
+            <div className="flex flex-col gap-4 mb-2">
               <select value={yeniButceKategori} onChange={(e) => setYeniButceKategori(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-bold text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-orange-500 cursor-pointer">
-                <option value="" disabled>Kategori Seçin...</option>
-                {giderKategorileri.map((kat, index) => <option key={index} value={kat}>{kat}</option>)}
+                <option value="" disabled>{t.selectCat}</option>
+                {t.categories.map((kat, index) => <option key={index} value={kat}>{kat}</option>)}
               </select>
-              <div className="flex gap-2">
-                <input type="number" value={yeniButceLimit} onChange={(e) => setYeniButceLimit(e.target.value)} placeholder={`Limit (${currency})`} className="flex-1 bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-bold text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-orange-500" />
-                <button onClick={handleButceKaydet} className="bg-orange-500 text-white px-6 rounded-2xl font-bold hover:bg-orange-600 transition-colors">Koy</button>
-              </div>
+              <input type="number" value={yeniButceLimit} onChange={(e) => setYeniButceLimit(e.target.value)} placeholder={`Limit (${currency})`} className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-bold text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-orange-500" />
             </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setIsButceModalAcik(false)} className="flex-1 py-4 rounded-2xl font-bold text-gray-400 bg-gray-100 dark:bg-gray-700 text-sm">{t.cancel}</button>
+              <button onClick={handleButceKaydet} className="flex-1 py-4 rounded-2xl font-bold text-white shadow-lg text-sm bg-orange-500 hover:bg-orange-600 transition-colors">{t.save}</button>
+            </div>
+
             {butcelerListesi.length > 0 && (
-              <div className="mt-6 border-t border-gray-100 dark:border-gray-700 pt-4">
-                <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-wider">Aktif Bütçe Limitlerin</p>
+              <div className="mt-6 border-t border-gray-100 dark:border-gray-700 pt-6">
+                <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-wider">{t.activeBudgets}</p>
                 <div className="flex flex-col gap-2 max-h-40 overflow-y-auto pr-1">
                   {butcelerListesi.map(b => (
                     <div key={b.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-700 p-3 rounded-xl">
@@ -415,16 +423,16 @@ function Dashboard() {
       {isAbonelikModalAcik && (
         <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-6 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] p-8 w-full max-w-xs shadow-2xl animate-in fade-in zoom-in duration-200">
-            <h3 className="text-xl font-black text-gray-900 dark:text-white mb-1">Abonelik Ekle</h3>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-6 font-medium">Düzenli ödemelerini takip et.</p>
+            <h3 className="text-xl font-black text-gray-900 dark:text-white mb-1">{t.addSub}</h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-6 font-medium">{t.subDesc}</p>
             <div className="flex flex-col gap-4">
-              <input type="text" value={yeniAbonelikAd} onChange={(e) => setYeniAbonelikAd(e.target.value)} placeholder="Örn: Netflix, Kira" className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-bold text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-purple-500" />
-              <input type="number" value={yeniAbonelikTutar} onChange={(e) => setYeniAbonelikTutar(e.target.value)} placeholder={`Aylık Tutar (${currency})`} className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-bold text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-purple-500" />
-              <input type="number" min="1" max="31" value={yeniAbonelikGun} onChange={(e) => setYeniAbonelikGun(e.target.value)} placeholder="Ayın Kaçıncı Günü? (1-31)" className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-bold text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-purple-500" />
+              <input type="text" value={yeniAbonelikAd} onChange={(e) => setYeniAbonelikAd(e.target.value)} placeholder={t.exSub} className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-bold text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-purple-500" />
+              <input type="number" value={yeniAbonelikTutar} onChange={(e) => setYeniAbonelikTutar(e.target.value)} placeholder={`${t.monthAmt} (${currency})`} className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-bold text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-purple-500" />
+              <input type="number" min="1" max="31" value={yeniAbonelikGun} onChange={(e) => setYeniAbonelikGun(e.target.value)} placeholder={t.whichDay} className="w-full bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl font-bold text-gray-800 dark:text-white outline-none border border-gray-100 dark:border-gray-600 focus:border-purple-500" />
             </div>
             <div className="flex gap-3 mt-8">
-              <button onClick={() => setIsAbonelikModalAcik(false)} className="flex-1 py-4 rounded-2xl font-bold text-gray-400 bg-gray-100 dark:bg-gray-700 text-sm">İptal</button>
-              <button onClick={handleAbonelikKaydet} className="flex-1 py-4 rounded-2xl font-bold text-white shadow-lg text-sm bg-purple-500 hover:bg-purple-600 transition-colors">Kaydet</button>
+              <button onClick={() => setIsAbonelikModalAcik(false)} className="flex-1 py-4 rounded-2xl font-bold text-gray-400 bg-gray-100 dark:bg-gray-700 text-sm">{t.cancel}</button>
+              <button onClick={handleAbonelikKaydet} className="flex-1 py-4 rounded-2xl font-bold text-white shadow-lg text-sm bg-purple-500 hover:bg-purple-600 transition-colors">{t.save}</button>
             </div>
           </div>
         </div>
